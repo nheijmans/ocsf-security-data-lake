@@ -1,0 +1,121 @@
+load_file "/logs/cloudtrail-record.json"
+read_json
+
+// Each entry in Records becomes its own event
+unroll Records
+this = Records
+
+// Authentication-relevant CloudTrail events get routed to ocsf.authentication;
+// everything else goes to ocsf.api_activity.
+is_signin_auth = eventSource == "signin.amazonaws.com" and (
+  eventName == "ConsoleLogin" or eventName == "SwitchRole" or
+  eventName == "ExitRole"     or eventName == "RenewRole"  or
+  eventName == "CheckMfa"
+)
+is_sts_auth = eventSource == "sts.amazonaws.com" and (
+  eventName == "AssumeRole"              or eventName == "AssumeRoleWithSAML" or
+  eventName == "AssumeRoleWithWebIdentity" or
+  eventName == "GetSessionToken"         or eventName == "GetFederationToken"
+)
+is_auth = is_signin_auth or is_sts_auth
+
+if is_auth {
+  // OCSF Authentication (class 3002)
+  // activity_id: 1 = Logon (default), 2 = Logoff
+  // status_id:   1 = Success (default), 2 = Failure
+  auth_activity_id = 1
+  if eventName == "ExitRole" {
+    auth_activity_id = 2
+  }
+  auth_status_id = 1
+  if errorCode? != null {
+    auth_status_id = 2
+  }
+
+  this = {
+    class_uid:   3002,
+    activity_id: auth_activity_id,
+    status_id:   auth_status_id,
+    time:        eventTime,
+    actor: {
+      user: {
+        name:    userIdentity.userName,
+        uid:     userIdentity.principalId,
+        account: { uid: userIdentity.accountId }
+      }
+    },
+    user: {
+      name: userIdentity.userName,
+      uid:  userIdentity.principalId
+    },
+    src_endpoint: { ip: sourceIPAddress },
+    cloud: {
+      region:   awsRegion,
+      provider: "AWS",
+      account:  { uid: recipientAccountId }
+    },
+    metadata: {
+      version:  "1.3.0",
+      profiles: ["cloud"],
+      product:  { name: "CloudTrail", vendor_name: "AWS" }
+    },
+    unmapped: {
+      eventName:     eventName,
+      eventSource:   eventSource,
+      eventType:     eventType,
+      eventCategory: eventCategory,
+      readOnly:      readOnly
+    }
+  }
+
+  ocsf::derive
+  ocsf::cast
+
+  to_clickhouse table="ocsf.authentication",
+                host="clickhouse", port=9000, tls=false,
+                user="default", password="tenzir",
+                mode="create_append", primary=time
+} else {
+  // OCSF API Activity (class 6003)
+  this = {
+    class_uid:   6003,
+    activity_id: 1,
+    time:        eventTime,
+    api: {
+      operation: eventName,
+      service:   { name: eventSource },
+      request:   { uid: requestID }
+    },
+    actor: {
+      user: {
+        name:    userIdentity.userName,
+        uid:     userIdentity.principalId,
+        account: { uid: userIdentity.accountId }
+      }
+    },
+    src_endpoint: { ip: sourceIPAddress },
+    cloud: {
+      region:   awsRegion,
+      provider: "AWS",
+      account:  { uid: recipientAccountId }
+    },
+    metadata: {
+      version:  "1.3.0",
+      profiles: ["cloud"],
+      product:  { name: "CloudTrail", vendor_name: "AWS" }
+    },
+    unmapped: {
+      eventType:     eventType,
+      eventCategory: eventCategory,
+      readOnly:      readOnly
+    }
+  }
+
+  ocsf::derive
+  ocsf::cast
+
+  to_clickhouse table="ocsf.api_activity",
+                host="clickhouse", port=9000, tls=false,
+                user="default", password="tenzir",
+                mode="create_append", primary=time
+}

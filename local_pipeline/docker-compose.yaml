@@ -1,0 +1,70 @@
+services:
+
+  tenzir-node:
+    image: ghcr.io/tenzir/tenzir-node:latest
+    container_name: tenzir-node
+
+    environment:
+      # Token weglaten = puur lokale node, geen app.tenzir.com verbinding
+      # TENZIR_TOKEN: ${TENZIR_TOKEN}
+
+      # Schijfbudget voor interne opslag
+      TENZIR_STORAGE_DISK_BUDGET_HIGH: 21GiB
+      TENZIR_STORAGE_DISK_BUDGET_LOW: 10GiB 
+
+    ports:
+      - "5158:5158"     # Node REST API — voor CLI commando's
+      - "24224:24224"   # Fluent Bit Forward — voor later
+
+    volumes:
+      # Persistente node data (pipelines state, pub/sub buffers, opslag)
+      - tenzir-data:/var/lib/tenzir
+
+      # Jouw log samples — read-only in de container
+      - ./pipelines/logs:/logs:ro
+
+      # Jouw TQL pipelines — read-only, live reloadbaar
+      - ./pipelines:/pipelines:ro
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "tenzir", "pipeline", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse
+
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: tenzir
+      CLICKHOUSE_DB: ocsf
+
+    ports:
+      - "8123:8123"     # HTTP interface
+      - "9000:9000"     # Native TCP interface
+
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+    volumes:
+      # Persistente ClickHouse data als bind mount in projectfolder
+      - ./clickhouse_data:/var/lib/clickhouse
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  # Named volume zodat data overleeft bij container restart
+  tenzir-data:
+    driver: local

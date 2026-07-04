@@ -1,0 +1,3 @@
+load_file "/logs/vpc-flow-logs.txt"
+read_csv
+publish "vpc-flows"

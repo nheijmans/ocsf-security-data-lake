@@ -1,0 +1,9 @@
+# Restart caliber (tenzir-node) 5 minutes after pihole's nightly log rotation.
+# pihole runs `pihole flush` at midnight in its own (CEST) timezone, which is
+# 22:00 UTC on a host set to UTC. The restart forces tenzir to re-open the
+# freshly created pihole.log instead of continuing to tail the rotated-out file.
+#
+# Install with:  crontab -e   (then paste the line below)
+# Verify with:   crontab -l
+#
+5 22 * * * /usr/bin/docker restart caliber 2>&1 | logger -t pihole-postrotate

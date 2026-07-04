@@ -1,0 +1,35 @@
+networks:
+  homelab:
+    external: true
+
+services:
+  tenzir-node:
+    container_name: "caliber"
+    image: "tenzir/tenzir:latest"
+    pull_policy: always
+
+    environment:
+      - TENZIR_TOKEN=tnz_REPLACE_ME
+      - TENZIR_PLATFORM_CONTROL_ENDPOINT=wss://ws.tenzir.app/production
+      - TENZIR_ENDPOINT=tenzir-node:5158
+
+    entrypoint:
+      - tenzir-node
+      - --config=/etc/tenzir/tenzir.yaml
+
+    volumes:
+      - tenzir-lib:/var/lib/tenzir/
+      - tenzir-log:/var/log/tenzir/
+      - /home/niels/lab/pipeline/tenzir:/pipelines
+      - /var/log/pihole:/pihole_logs:ro
+      - ./tenzir.yaml:/etc/tenzir/tenzir.yaml:ro
+
+    networks: [ homelab ]
+    ports:
+      - 5151:5151
+
+volumes:
+  tenzir-lib:
+    driver: local
+  tenzir-log:
+    driver: local

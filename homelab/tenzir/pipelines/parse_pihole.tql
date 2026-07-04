@@ -1,0 +1,40 @@
+load_file "/pihole_logs/pihole.log", follow=true
+read_syslog
+where app_name == "dnsmasq"
+where content.starts_with("query[")
+
+query = content.parse_grok("query\\[%{WORD:qtype}\\] %{NOTSPACE:qname} from %{IP:clientip}")
+where query != null
+where query.qname != "caliber"
+
+time = (now().format_time("%Y") + " " + timestamp).parse_time("%Y %b %e %H:%M:%S")
+
+this = {
+  class_uid:   4003,
+  activity_id: 1,
+  time:        time,
+  count:       1,
+  src_endpoint: { ip: query.clientip },
+  query: {
+    hostname: query.qname,
+    type:     query.qtype,
+    class:    "IN"
+  },
+  metadata: {
+    version:  "1.7.0",
+    profiles: ["dns_activity"],
+    product:  { name: "Pi-hole", vendor_name: "Pi-hole" }
+  }
+}
+
+ocsf::derive
+ocsf::cast
+
+to_clickhouse table="ocsf.dns_activity",
+              host="clickhouse",
+              port=9000,
+              tls=false,
+              user="default",
+              password="tenzir",
+              mode="create_append",
+              primary=time

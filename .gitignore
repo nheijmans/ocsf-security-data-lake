@@ -1,0 +1,16 @@
+# Runtime state (recreated by docker compose)
+local_pipeline/clickhouse_data/
+local_pipeline/logs/
+
+# Secrets and local overrides
+.env
+*.local
+secrets/
+
+# Editor & OS noise
+.DS_Store
+.idea/
+.vscode/
+
+# Claude Code per-project config
+.claude/

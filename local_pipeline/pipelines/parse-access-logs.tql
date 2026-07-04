@@ -1,0 +1,43 @@
+load_file "/logs/http-access-logs.txt"
+read_lines
+
+parsed = line.parse_grok("%{IP:sourceip} - - \\[%{DATA:timestamp}\\] %{WORD:method} %{URIPATHPARAM:path} %{DATA} %{NUMBER:status} %{NUMBER:bytes} %{DATA}")
+parsed.timestamp = parsed.timestamp.parse_time("%d/%b/%Y:%H:%M:%S %z")
+
+let $method_aid = {"GET": 3, "POST": 6, "PUT": 7}
+
+// OCSF mapping 
+this = {
+  class_uid:    4002,
+  activity_id:  $method_aid[parsed.method],
+  time:         parsed.timestamp,
+
+  src_endpoint: {
+    ip: parsed.sourceip
+  },
+
+  http_request: {
+    http_method: parsed.method,
+    url: {
+      path: parsed.path
+    }
+  },
+
+  http_response: {
+    code: parsed.status,
+    length: parsed.bytes
+  },
+  metadata: {
+    version:    "1.7.0",
+    profiles: ["http"],
+    product: {
+      name:         "NGINX",
+      vendor_name:  "NGINX",
+    },
+  }
+}
+
+ocsf::derive
+ocsf::cast
+
+write_json

@@ -1,0 +1,40 @@
+subscribe "vpc-flows"
+
+// OCSF mapping 
+this = {
+  class_uid:    4001,
+  activity_id: 99,
+  category_uid: 4,
+  dst_endpoint: {
+    ip: dstaddr,
+    port: dstport
+  },
+  src_endpoint: {
+    ip: srcaddr,
+    port: srcport
+  },
+  connection_info: {
+    direction_id: 99,
+    protocol_num: protocol
+  },
+  duration: end-start,
+  end_time: end.seconds().from_epoch(),
+  start_time: start.seconds().from_epoch(),
+  severity_id: 0,
+  time: start.seconds().from_epoch(),
+  traffic: {
+    bytes: bytes,
+    packets: packets
+  },
+  metadata: {
+    version:    "1.7.0",
+    profiles: ["network"],
+    product: {
+    name:         "VPC Flow Logs",
+    vendor_name:  "Amazon"
+        }
+    }
+}
+
+ocsf::derive
+ocsf::cast
